@@ -194,3 +194,5 @@
 - Reused the production flag for secure session-cookie configuration.
 - Added [.env.example](../.env.example) with safe configuration keys and documented production requirements in [README.md](../README.md).
 - Validation: `npm test` passed with 6 tests in 3.75 seconds; `npm run build` passed in 2.45 seconds; `git diff --check` passed.
+- Hardening commit: `8d3d7ea` (`Harden production environment configuration`) was pushed successfully to `origin/main`.
+- The worktree was clean and `main` matched `origin/main` after the push.
