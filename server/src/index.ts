@@ -160,7 +160,7 @@ app.get("/api/mentorship", auth, (req: AuthRequest, res) => {
     LEFT JOIN profiles ap ON ap.user_id=a.id WHERE mr.student_id=? OR mr.alumni_id=? ORDER BY mr.created_at DESC`).all(req.user!.id, req.user!.id);
   res.json({ requests: rows });
 });
-app.post("/api/mentorship/:alumniId", auth, role("student"), (req: AuthRequest, res) => {
+app.post("/api/mentorship/:alumniId(\\d+)", auth, role("student"), (req: AuthRequest, res) => {
   const parsed = z.object({ message: z.string().min(10).max(500) }).safeParse(req.body);
   const alumniId = Number(req.params.alumniId);
   if (!parsed.success) return res.status(400).json({ error: "Tell the mentor a little about what you would like to discuss." });

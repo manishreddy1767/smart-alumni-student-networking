@@ -2,6 +2,21 @@ import request from "supertest";
 import { describe, expect, it } from "vitest";
 import app from "./index.js";
 
+const password = "TestPass123!";
+const login = async (email: string) => {
+  const agent = request.agent(app);
+  const response = await agent.post("/api/auth/login").send({ email, password: email.endsWith("@alumni-connect.local") ? "DemoPass123!" : password });
+  expect(response.status).toBe(200);
+  return agent;
+};
+const register = async (role: "student" | "alumni") => {
+  const email = `${role}-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`;
+  const agent = request.agent(app);
+  const response = await agent.post("/api/auth/register").send({ name: `Test ${role}`, email, password, role });
+  expect(response.status).toBe(201);
+  return { agent, email, id: response.body.user.id };
+};
+
 describe("AlumniConnect API", () => {
   it("reports healthy", async () => {
     const response = await request(app).get("/api/health");
@@ -72,5 +87,145 @@ describe("AlumniConnect API", () => {
     expect(duplicate.status).toBe(409);
     const invalidSchedule = await student.post("/api/mentorship/999/schedule").send({ availability_id: 999 });
     expect(invalidSchedule.status).toBe(400);
+  });
+
+  it("registers a user, rejects duplicate email, and returns the profile", async () => {
+    const created = await register("student");
+    const duplicate = await request(app).post("/api/auth/register").send({ name: "Duplicate", email: created.email, password, role: "student" });
+    expect(duplicate.status).toBe(409);
+    const me = await created.agent.get("/api/auth/me");
+    expect(me.status).toBe(200);
+    expect(me.body.profile.user_id).toBe(created.id);
+  });
+
+  it("rejects suspended-account login", async () => {
+    const created = await register("student");
+    const admin = await login("admin@alumni-connect.local");
+    expect((await admin.patch(`/api/admin/users/${created.id}/status`).send({ status: "suspended" })).status).toBe(200);
+    const suspended = await request(app).post("/api/auth/login").send({ email: created.email, password });
+    expect(suspended.status).toBe(403);
+    expect((await admin.patch(`/api/admin/users/${created.id}/status`).send({ status: "active" })).status).toBe(200);
+  });
+
+  it("enforces role authorization boundaries", async () => {
+    const student = await login("student@alumni-connect.local");
+    expect((await student.post("/api/opportunities").send({})).status).toBe(403);
+    expect((await student.get("/api/admin/overview")).status).toBe(403);
+    expect((await student.post("/api/mentorship/availability").send({ starts_at: new Date(Date.now() + 86400000).toISOString(), ends_at: new Date(Date.now() + 90000000).toISOString() })).status).toBe(403);
+  });
+
+  it("enforces private profile visibility while allowing self access", async () => {
+    const owner = await register("student");
+    const other = await register("student");
+    const profile = { headline: "", bio: "", company: "", job_title: "", industry: "", location: "", skills: "", interests: "", available_for_mentoring: false, visibility: "private" };
+    expect((await owner.agent.patch("/api/profiles/me").send(profile)).status).toBe(200);
+    expect((await other.agent.get(`/api/profiles/${owner.id}`)).status).toBe(404);
+    expect((await owner.agent.get(`/api/profiles/${owner.id}`)).status).toBe(200);
+  });
+
+  it("completes a connection request lifecycle and persists accepted state", async () => {
+    const sender = await register("student");
+    const receiver = await register("student");
+    const sent = await sender.agent.post(`/api/connections/${receiver.id}`);
+    expect(sent.status).toBe(201);
+    const pending = await receiver.agent.get("/api/connections");
+    expect(pending.body.connections.some((row: any) => row.sender_id === sender.id && row.status === "pending")).toBe(true);
+    const connection = pending.body.connections.find((row: any) => row.sender_id === sender.id);
+    expect((await receiver.agent.patch(`/api/connections/${connection.id}`).send({ status: "accepted" })).status).toBe(200);
+    const persisted = await sender.agent.get("/api/connections");
+    expect(persisted.body.connections.find((row: any) => row.id === connection.id).status).toBe("accepted");
+  });
+
+  it("rejects overlapping mentor availability windows", async () => {
+    const alumni = await register("alumni");
+    const start = new Date(Date.now() + 172800000);
+    const first = { starts_at: start.toISOString(), ends_at: new Date(start.getTime() + 3600000).toISOString() };
+    expect((await alumni.agent.post("/api/mentorship/availability").send(first)).status).toBe(201);
+    const overlap = { starts_at: new Date(start.getTime() + 1800000).toISOString(), ends_at: new Date(start.getTime() + 5400000).toISOString() };
+    expect((await alumni.agent.post("/api/mentorship/availability").send(overlap)).status).toBe(409);
+  });
+
+  it("schedules, lists, cancels, and completes mentorship sessions with ownership checks", async () => {
+    const student = await register("student");
+    const alumni = await login("alumni@alumni-connect.local");
+    const start = new Date(Date.now() + 259200000);
+    const availability = await alumni.post("/api/mentorship/availability").send({ starts_at: start.toISOString(), ends_at: new Date(start.getTime() + 1800000).toISOString() });
+    expect(availability.status).toBe(201);
+    const requestToSeededMentor = await student.agent.post("/api/mentorship/2").send({ message: "I would like to discuss career options." });
+    expect(requestToSeededMentor.status).toBe(201);
+    const requests = await alumni.get("/api/mentorship");
+    const mentorship = requests.body.requests.find((row: any) => row.student_id === student.id);
+    expect((await alumni.patch(`/api/mentorship/${mentorship.id}`).send({ status: "accepted" })).status).toBe(200);
+    const wrongUser = await register("student");
+    expect((await wrongUser.agent.post(`/api/mentorship/${mentorship.id}/schedule`).send({ availability_id: availability.body.id })).status).toBe(400);
+    const scheduled = await student.agent.post(`/api/mentorship/${mentorship.id}/schedule`).send({ availability_id: availability.body.id, meeting_link: "https://example.com/session" });
+    expect(scheduled.status).toBe(201);
+    const sessions = await student.agent.get("/api/mentorship/sessions");
+    expect(sessions.body.sessions.find((session: any) => session.id === scheduled.body.id).status).toBe("scheduled");
+    expect((await student.agent.patch(`/api/mentorship/sessions/${scheduled.body.id}`).send({ status: "cancelled" })).status).toBe(200);
+    expect((await alumni.get("/api/mentorship/sessions")).body.sessions.find((session: any) => session.id === scheduled.body.id).status).toBe("cancelled");
+  });
+
+  it("moderates opportunities with admin authorization and persists status", async () => {
+    const alumni = await register("alumni");
+    const created = await alumni.agent.post("/api/opportunities").send({ title: `Review ${Date.now()}`, organization: "Test Org", type: "Internship", location: "Remote", description: "A sufficiently detailed opportunity description.", skills: "Testing", deadline: "2099-12-31", application_url: "https://example.com/review" });
+    expect(created.status).toBe(201);
+    expect((await alumni.agent.patch(`/api/admin/opportunities/${created.body.id}`).send({ status: "published" })).status).toBe(403);
+    const admin = await login("admin@alumni-connect.local");
+    expect((await admin.patch(`/api/admin/opportunities/${created.body.id}`).send({ status: "published" })).status).toBe(200);
+    const opportunities = await (await register("student")).agent.get("/api/opportunities?q=Review");
+    expect(opportunities.body.opportunities.some((item: any) => item.id === created.body.id)).toBe(true);
+  });
+
+  it("updates application status only for the opportunity owner and persists it", async () => {
+    const alumni = await login("alumni@alumni-connect.local");
+    const student = await register("student");
+    const created = await alumni.post("/api/opportunities").send({ title: `Application ${Date.now()}`, organization: "Test Org", type: "Internship", location: "Remote", description: "A sufficiently detailed opportunity description.", skills: "Testing", deadline: "2099-12-31", application_url: "https://example.com/application" });
+    expect(created.status).toBe(201);
+    const admin = await login("admin@alumni-connect.local");
+    expect((await admin.patch(`/api/admin/opportunities/${created.body.id}`).send({ status: "published" })).status).toBe(200);
+    const applied = await student.agent.post(`/api/opportunities/${created.body.id}/apply`).send({ cover_note: "I am excited about this opportunity." });
+    expect(applied.status).toBe(201);
+    const listed = await alumni.get("/api/applications");
+    const application = listed.body.applications.find((item: any) => item.opportunity_id === created.body.id);
+    expect((await student.agent.patch(`/api/applications/${application.id}`).send({ status: "shortlisted" })).status).toBe(403);
+    expect((await alumni.patch(`/api/applications/${application.id}`).send({ status: "shortlisted" })).status).toBe(200);
+    const persisted = await student.agent.get("/api/applications");
+    expect(persisted.body.applications.find((item: any) => item.id === application.id).status).toBe("shortlisted");
+  });
+
+  it("marks only the owner notification as read", async () => {
+    const sender = await register("student");
+    const receiver = await register("student");
+    expect((await sender.agent.post(`/api/connections/${receiver.id}`)).status).toBe(201);
+    const notifications = await receiver.agent.get("/api/notifications");
+    const notification = notifications.body.notifications.find((item: any) => item.title === "New connection request");
+    expect(notification.read).toBe(0);
+    expect((await receiver.agent.patch(`/api/notifications/${notification.id}/read`)).status).toBe(204);
+    const updated = await receiver.agent.get("/api/notifications");
+    expect(updated.body.notifications.find((item: any) => item.id === notification.id).read).toBe(1);
+    expect((await sender.agent.patch(`/api/notifications/${notification.id}/read`)).status).toBe(204);
+  });
+
+  it("protects admin verification and records the verified profile", async () => {
+    const alumni = await register("alumni");
+    const student = await register("student");
+    expect((await student.agent.patch(`/api/admin/alumni/${alumni.id}/verify`)).status).toBe(403);
+    const admin = await login("admin@alumni-connect.local");
+    expect((await admin.patch(`/api/admin/alumni/${alumni.id}/verify`)).status).toBe(200);
+    const profile = await student.agent.get(`/api/profiles/${alumni.id}`);
+    expect(profile.status).toBe(200);
+    expect(profile.body.profile.verified).toBe(1);
+  });
+
+  it("returns only the caller's applications and connections", async () => {
+    const student = await register("student");
+    const other = await register("student");
+    const applications = await student.agent.get("/api/applications");
+    expect(applications.status).toBe(200);
+    expect(applications.body.applications.every((item: any) => item.student_id === student.id)).toBe(true);
+    const connections = await other.agent.get("/api/connections");
+    expect(connections.status).toBe(200);
+    expect(connections.body.connections.every((item: any) => item.sender_id === other.id || item.receiver_id === other.id)).toBe(true);
   });
 });

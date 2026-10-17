@@ -198,6 +198,17 @@
 - The worktree was clean and `main` matched `origin/main` after the push.
 - Work-log synchronization commit `a205dec` (`Record CI batch push status`) was pushed successfully to `origin/main`.
 - Final handoff status: `main` matches `origin/main` and no uncommitted changes remain.
+
+### Backend test coverage milestone
+
+- Read the work log and confirmed a clean `main` branch at `7e191fb` before changes.
+- Baseline command: `npm test`; result was 6 passing tests in 3.27 seconds.
+- Added 12 focused Supertest/Vitest areas in [server/src/index.test.ts](../server/src/index.test.ts): registration/duplicate email, suspended login, role boundaries, profile privacy, connection lifecycle, availability overlap, mentorship session ownership/lifecycle, opportunity moderation, application status ownership, notification read ownership, alumni verification, and caller-scoped data.
+- The first expanded run reached 18 tests with 3 failures. The failures identified a genuine route-ordering defect: `POST /api/mentorship/availability` matched the dynamic `:alumniId` route.
+- Fixed the related defect in [server/src/index.ts](../server/src/index.ts) by constraining the mentorship request parameter to numeric alumni IDs.
+- Rerun result: `npm test` passed all 18 tests in 11.57 seconds; `git diff --check` passed.
+- Final compile validation: `npm run build` passed in 2.64 seconds with TypeScript compilation and Vite production bundling.
+- Diff review showed only [server/src/index.test.ts](../server/src/index.test.ts), the numeric mentorship route constraint in [server/src/index.ts](../server/src/index.ts), and this work-log entry changed.
 - Work-log synchronization commit: `0243492` (`Record production hardening push status`) was pushed successfully to `origin/main`.
 - Final handoff status: `main` matches `origin/main` and no uncommitted changes remain.
 
