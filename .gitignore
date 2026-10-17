@@ -218,3 +218,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / local application state
+node_modules/
+dist/
+client/dist/
+server/data/*.db
+server/data/*.db-*
+.env
+.env.*
+!.env.example
