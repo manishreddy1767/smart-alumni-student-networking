@@ -13,9 +13,11 @@ AlumniConnect gives students and verified alumni one trusted place to discover o
 - Verified alumni discovery with search and mentoring availability filters.
 - Connection request lifecycle: send, accept, reject, and cancel.
 - Mentorship request lifecycle with alumni availability controls.
+- Mentorship session scheduling from open availability, with cancellation and completion actions.
 - Opportunity search and publishing with explicit demonstration-data labels.
+- Paginated alumni and opportunity discovery, with internal application status management.
 - In-app notifications with unread/read state.
-- Administrator dashboard for alumni verification and audit-ready actions.
+- Administrator dashboard for alumni verification, opportunity moderation, account moderation, and recent audit-log review.
 - SQLite schema with foreign keys, indexes, constraints, and deterministic seed data.
 
 ## Stack
@@ -66,10 +68,13 @@ npm run build
 ```
 
 The API test suite covers health, invalid credentials, seeded login, protected dashboard/discovery data, and unauthenticated access.
+The current canonical suite includes 22 backend integration tests and 2 frontend smoke tests (24 tests total).
 
 ## Deployment notes
 
 The production process is a single Node.js service: build the client and server with `npm run build`, then start Express with `npm start`. Configure `NODE_ENV=production`, a long random `JWT_SECRET`, `CLIENT_ORIGIN` for the deployed frontend origin, `PORT`, and a writable `DATABASE_PATH`. State-changing requests with a browser `Origin` or `Referer` are restricted to `CLIENT_ORIGIN`; login and registration attempts are rate-limited in memory per IP/email key, so use a shared rate-limit store before running multiple instances. Session cookies are invalidated when an account status changes, and public profile responses do not expose email addresses. SQLite is suitable for a small single-instance deployment; use a managed relational database before scaling to multiple application instances. The repository CI workflow runs `npm ci`, `npm test`, and `npm run build` for pushes and pull requests targeting `main`.
+
+The repository does not include infrastructure provisioning, hosted database setup, browser-E2E automation, or a dedicated automated WCAG scanner. Those remain deployment/operator responsibilities and should be added before a larger production rollout.
 
 ### Database migrations and backup
 

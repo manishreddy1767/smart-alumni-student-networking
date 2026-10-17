@@ -8,9 +8,9 @@ The project uses TypeScript for both the Express API and React client. This keep
 
 The platform is an authenticated dashboard application with clear client-side navigation and interactive filters. React with Vite gives fast local feedback and a simple production build without coupling the course project to a hosted runtime.
 
-## Decision 3: Express API with service-oriented modules
+## Decision 3: Express API with a deliberately small implementation surface
 
-Express is used for HTTP transport while authentication, validation, persistence, and route handlers remain in separate modules. This keeps business rules testable and avoids putting the entire backend in a single file.
+Express is used for HTTP transport. The current course-project implementation keeps authentication, validation, persistence, security middleware, and route handlers in `server/src/index.ts`, with database initialization and migrations in `server/src/db.ts`. This avoids premature module fragmentation while the API remains small; a future growth phase can split these concerns behind tests.
 
 ## Decision 4: SQLite with `better-sqlite3`
 
