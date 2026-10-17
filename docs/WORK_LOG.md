@@ -231,6 +231,9 @@
 - Additional validation: `npm run build` passed with TypeScript compilation and Vite production bundling; `git diff --check` passed again.
 - Commit `e080e94` (`Strengthen authentication rate limit coverage`) was created and pushed successfully to `origin/main`.
 - The implementation commit's hosted CI result is pending; this work-log synchronization will be committed separately after final branch verification.
+- Work-log synchronization commit `b4361a1` (`Record rate limit milestone push`) was created and pushed successfully to `origin/main`.
+- Final verification before this entry: `git status --short --branch` reported a clean `main`; `HEAD` and `origin/main` both resolved to `b4361a19a1a5c7436ffc8f96fb436a4b2dac27fa`.
+- No hosted CI result was checked for the synchronization-only commit; local focused tests and build results above are the verified evidence for this task.
 
 ### Frontend accessibility and state primitives
 
