@@ -149,3 +149,4 @@
 - `npm audit --json`: 0 total vulnerabilities.
 - `npm test`: passed, 4 tests.
 - `npm run build`: passed; TypeScript and Vite production bundle completed.
+- Remediation commit: `244054b` (`Remediate Vitest dependency vulnerabilities`), pushed successfully to `origin/main`.
