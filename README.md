@@ -66,3 +66,7 @@ npm run build
 ```
 
 The API test suite covers health, invalid credentials, seeded login, protected dashboard/discovery data, and unauthenticated access.
+
+## Deployment notes
+
+The production process is a single Node.js service: build the client and server with `npm run build`, then start Express with `npm start`. Configure `NODE_ENV=production`, a long random `JWT_SECRET`, `CLIENT_ORIGIN` for the deployed frontend origin, `PORT`, and a writable `DATABASE_PATH`. SQLite is suitable for a small single-instance deployment; use a managed relational database before scaling to multiple application instances. The repository CI workflow runs `npm ci`, `npm test`, and `npm run build` for pushes and pull requests targeting `main`.

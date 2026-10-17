@@ -198,3 +198,9 @@
 - The worktree was clean and `main` matched `origin/main` after the push.
 - Work-log synchronization commit: `0243492` (`Record production hardening push status`) was pushed successfully to `origin/main`.
 - Final handoff status: `main` matches `origin/main` and no uncommitted changes remain.
+
+### CI and deployment documentation
+
+- Added [.github/workflows/ci.yml](../.github/workflows/ci.yml) to run `npm ci`, `npm test`, and `npm run build` on pushes and pull requests targeting `main`.
+- Added deployment notes to [README.md](../README.md) covering the single Node.js process, production environment variables, writable SQLite path, and the multi-instance database limitation.
+- Validation: `npm test` passed with 6 tests in 3.63 seconds; `npm run build` passed in 2.54 seconds; `git diff --check` passed.
