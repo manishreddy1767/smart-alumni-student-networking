@@ -11,8 +11,13 @@ import { db, initializeDatabase } from "./db.js";
 
 initializeDatabase();
 const app = express();
+const isProduction = process.env.NODE_ENV === "production";
+if (isProduction && !process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET must be configured when NODE_ENV=production.");
+}
 const JWT_SECRET = process.env.JWT_SECRET ?? "local-development-secret-change-me";
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+const clientOrigin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
+app.use(cors({ origin: clientOrigin, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
@@ -44,7 +49,7 @@ app.post("/api/auth/register", (req, res) => {
     const id = Number(result.lastInsertRowid);
     db.prepare("INSERT INTO profiles (user_id,headline,verified) VALUES (?,?,?)").run(id, userRole === "student" ? "New student member" : "Alumni profile awaiting verification", userRole === "student" ? 1 : 0);
     const token = jwt.sign({ id, email: email.toLowerCase(), name, role: userRole }, JWT_SECRET, { expiresIn: "2h" });
-    res.cookie("session", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 7200000 });
+    res.cookie("session", token, { httpOnly: true, sameSite: "lax", secure: isProduction, maxAge: 7200000 });
     return res.status(201).json({ user: { id, email: email.toLowerCase(), name, role: userRole, status: "active" } });
   } catch (error) {
     if (String(error).includes("UNIQUE")) return res.status(409).json({ error: "An account with that email already exists." });
@@ -58,7 +63,7 @@ app.post("/api/auth/login", (req, res) => {
   if (!user || !bcrypt.compareSync(parsed.data.password, String(user.password_hash))) return res.status(401).json({ error: "Email or password is incorrect." });
   if (user.status === "suspended") return res.status(403).json({ error: "This account has been suspended. Contact an administrator." });
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: "2h" });
-  res.cookie("session", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 7200000 });
+  res.cookie("session", token, { httpOnly: true, sameSite: "lax", secure: isProduction, maxAge: 7200000 });
   return res.json({ user: safeUser(user) });
 });
 app.post("/api/auth/logout", (_req, res) => { res.clearCookie("session"); res.status(204).send(); });

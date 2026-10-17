@@ -46,7 +46,7 @@ npm run build
 npm start
 ```
 
-The local SQLite database is created at `server/data/app.db`. Set `DATABASE_PATH`, `JWT_SECRET`, `PORT`, or `NODE_ENV` in a local `.env` file when needed. Do not commit `.env` or database files.
+The local SQLite database is created at `server/data/app.db`. Copy `.env.example` to `.env` and set `DATABASE_PATH`, `JWT_SECRET`, `PORT`, `CLIENT_ORIGIN`, or `NODE_ENV` when needed. Do not commit `.env` or database files. Production startup fails fast unless `JWT_SECRET` is explicitly configured; use a long randomly generated value and set `CLIENT_ORIGIN` to the deployed frontend origin.
 
 ## Demo accounts
 
