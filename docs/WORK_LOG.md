@@ -250,7 +250,8 @@
   - `npm run build`: passed.
   - `git diff --check`: passed.
 - Unresolved limitation: SQLite still serializes writes and remains unsuitable for write-heavy horizontally scaled deployments; the five-second busy timeout only reduces transient lock failures and does not remove that architectural boundary.
-- Commit and push are pending for this database milestone.
+- Commit `9d1cc6b` (`Harden SQLite initialization and persistence`) was created and pushed successfully to `origin/main`.
+- The post-push work-log synchronization entry is pending its own commit and push.
 
 ### Frontend accessibility and state primitives
 
