@@ -158,3 +158,27 @@
 - Repository status is clean and `main` is synchronized with `origin/main`.
 - No tracked TODO or FIXME markers were found.
 - Product follow-ups remain listed in the handoff summary; dependency CVE remediation is complete with 0 npm audit vulnerabilities.
+
+### Product completion batch 1
+
+- Added mentor availability and session scheduling/cancellation endpoints with overlap and ownership checks.
+- Added internal opportunity applications with duplicate prevention, status updates, and notifications.
+- Added admin opportunity moderation and account suspension/reactivation endpoints with audit records.
+- Added pagination metadata and page-size handling to alumni and opportunity discovery.
+- Added API tests for pagination, duplicate application prevention, and invalid session scheduling.
+- Initial expanded test run found the application test reused a persistent seeded database row and received the expected duplicate conflict too early.
+- Fixed the test to create a unique admin-published opportunity per run before testing first and duplicate applications.
+- Client build passed after adding the applications navigation and view; the corrected API test run is pending.
+- Corrected validation: `npm test` now passes 6 tests and `npm run build` passes.
+- Added a focused opportunity UI with internal application submission for students and application tracking navigation.
+
+### Product completion batch 2
+
+- Added the `MentorshipV2` client surface and wired it into navigation.
+- Alumni can add availability slots; users can review mentorship requests, accept/decline pending requests, schedule accepted requests by availability ID, and view scheduled sessions.
+- Added the `AdminV2` client surface and wired it into navigation.
+- Administrators can review and publish/reject pending opportunities and suspend/reactivate non-admin accounts.
+- These UI changes were made in [client/src/main.tsx](../client/src/main.tsx); backend behavior was unchanged.
+- Validation commands executed after this batch: `npm test` and `npm run build`.
+- Results: both commands passed; Vitest reported 6 passing tests and Vite produced `dist/index.html`, CSS, and JavaScript bundles.
+- Post-patch rerun confirmed at 19:30: `npm test` passed in 3.49 seconds; `npm run build` passed in 2.30 seconds.

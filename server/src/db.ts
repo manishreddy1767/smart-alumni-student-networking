@@ -43,6 +43,17 @@ export function initializeDatabase() {
       meeting_link TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'scheduled'
         CHECK (status IN ('scheduled','completed','cancelled'))
     );
+    CREATE TABLE IF NOT EXISTS mentor_availability (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, alumni_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open','booked','cancelled'))
+    );
+    CREATE TABLE IF NOT EXISTS applications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, opportunity_id INTEGER NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+      student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, cover_note TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','reviewing','shortlisted','rejected','withdrawn')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE(opportunity_id, student_id)
+    );
     CREATE TABLE IF NOT EXISTS opportunities (
       id INTEGER PRIMARY KEY AUTOINCREMENT, creator_id INTEGER NOT NULL REFERENCES users(id),
       title TEXT NOT NULL, organization TEXT NOT NULL, type TEXT NOT NULL CHECK (type IN ('Internship','Full-time','Part-time')),
@@ -63,6 +74,8 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(user_id);
     CREATE INDEX IF NOT EXISTS idx_opportunities_status ON opportunities(status, deadline);
     CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
+    CREATE INDEX IF NOT EXISTS idx_availability_alumni ON mentor_availability(alumni_id, starts_at);
+    CREATE INDEX IF NOT EXISTS idx_applications_student ON applications(student_id, status);
   `);
   seed();
 }
