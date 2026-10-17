@@ -236,6 +236,22 @@
 - No hosted CI result was checked for the synchronization-only commit; local focused tests and build results above are the verified evidence for this task.
 - Final work-log commit `220826e` (`Finalize rate limit work log`) was created and pushed successfully; after that push, the branch was clean and synchronized at the verification point above.
 
+### SQLite initialization and persistence verification
+
+- Read [server/src/db.ts](../server/src/db.ts), [server/src/index.test.ts](../server/src/index.test.ts), and the database sections of [README.md](../README.md), [docs/ARCHITECTURE.md](./ARCHITECTURE.md), and [docs/DECISIONS.md](./DECISIONS.md).
+- Confirmed the initializer uses `CREATE TABLE/INDEX IF NOT EXISTS`, forward-only schema version updates, and a seed guard based on the existing user count; it does not drop tables or reset existing data.
+- Identified two concrete reliability improvements in [server/src/db.ts](../server/src/db.ts): SQLite now waits up to five seconds for a locked writer via `busy_timeout`, and deterministic seed writes run inside an immediate transaction so partial seed state is not left behind if a later seed statement fails.
+- Added a read-only repeated-initialization persistence test in [server/src/index.test.ts](../server/src/index.test.ts), confirming the seeded user and row count remain unchanged after `initializeDatabase()` runs again.
+- Updated [README.md](../README.md), [docs/ARCHITECTURE.md](./ARCHITECTURE.md), and [docs/DECISIONS.md](./DECISIONS.md) to describe SQLite's local/small-single-instance suitability, serialized writes, the five-second lock wait, and when to move to a managed relational database. Corrected the documented backend test count to 24.
+- An initial shared-database suite run exposed accumulated local opportunity data causing an existing page-one test assumption to fail; no production database code was changed for that unrelated fixture issue.
+- Validation on an isolated temporary SQLite database (cleaned up by exact file path afterward):
+  - Focused initialization/schema tests: 2 passed, 22 skipped.
+  - Full backend suite: 24 tests passed.
+  - `npm run build`: passed.
+  - `git diff --check`: passed.
+- Unresolved limitation: SQLite still serializes writes and remains unsuitable for write-heavy horizontally scaled deployments; the five-second busy timeout only reduces transient lock failures and does not remove that architectural boundary.
+- Commit and push are pending for this database milestone.
+
 ### Frontend accessibility and state primitives
 
 - Read this work log and confirmed `main` was clean and synchronized before starting the frontend follow-up.

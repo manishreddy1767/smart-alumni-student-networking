@@ -7,6 +7,7 @@ const dataDir = path.resolve(process.env.DATABASE_PATH ?? "server/data/app.db", 
 fs.mkdirSync(dataDir, { recursive: true });
 export const db = new Database(process.env.DATABASE_PATH ?? "server/data/app.db");
 db.pragma("foreign_keys = ON");
+db.pragma("busy_timeout = 5000");
 const SCHEMA_VERSION = 2;
 
 function ensureColumn(table: string, column: string, definition: string) {
@@ -91,7 +92,7 @@ export function initializeDatabase() {
   const current = db.prepare("SELECT version FROM schema_meta WHERE key='app'").get() as { version: number } | undefined;
   if (!current) db.prepare("INSERT INTO schema_meta (key,version) VALUES ('app',?)").run(SCHEMA_VERSION);
   else if (current.version < SCHEMA_VERSION) db.prepare("UPDATE schema_meta SET version=? WHERE key='app'").run(SCHEMA_VERSION);
-  seed();
+  db.transaction(seed).immediate();
 }
 
 function seed() {

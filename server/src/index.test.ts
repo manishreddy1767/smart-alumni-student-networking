@@ -1,7 +1,7 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import app from "./index.js";
-import { db } from "./db.js";
+import { db, initializeDatabase } from "./db.js";
 
 const password = "TestPass123!";
 const login = async (email: string) => {
@@ -23,6 +23,16 @@ describe("AlumniConnect API", () => {
     const response = await request(app).get("/api/health");
     expect(response.status).toBe(200);
     expect(response.body.status).toBe("ok");
+  });
+
+  it("preserves existing data across repeated database initialization", () => {
+    const email = "student@alumni-connect.local";
+    const before = db.prepare("SELECT name FROM users WHERE email=?").get(email) as { name: string };
+    const countBefore = (db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number }).count;
+    initializeDatabase();
+    const persisted = db.prepare("SELECT name FROM users WHERE email=?").get(email) as { name: string } | undefined;
+    expect(persisted?.name).toBe(before.name);
+    expect((db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number }).count).toBe(countBefore);
   });
 
   it("rejects invalid credentials", async () => {

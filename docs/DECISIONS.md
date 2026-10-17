@@ -14,7 +14,7 @@ Express is used for HTTP transport. The current course-project implementation ke
 
 ## Decision 4: SQLite with `better-sqlite3`
 
-SQLite is a suitable default for local development and demonstration: it is relational, transactional, free, and requires no separate server. The schema is created by an idempotent initializer and can later be migrated to PostgreSQL behind the repository layer.
+SQLite is a suitable default for local development and demonstration: it is relational, transactional, free, and requires no separate server. The schema is created by an idempotent initializer, seed writes are atomic, and the connection waits briefly for a concurrent writer. SQLite still serializes writes and should be replaced with a managed relational database when contention, multiple instances, or operational scale require it.
 
 ## Decision 5: Cookie-based JWT sessions
 
