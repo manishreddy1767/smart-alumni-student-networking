@@ -208,6 +208,8 @@
 - Updated [README.md](../README.md) with the security behavior, rate-limit scaling limitation, migration policy, and tested backup/restore procedure. The backup command is documented, not executed against production data.
 - First hardening test run exposed three test-isolation issues and two TypeScript errors; adjusted successful-login throttling reset, used unique registered mentors, and added the JWT payload guard.
 - Final validation: `npm test` passed all 22 tests in 16.60 seconds; `npm run build` passed in 3.69 seconds; `git diff --check` passed.
+- Milestone commit `e130ab0` (`Harden authentication and database lifecycle`) was pushed successfully to `origin/main`.
+- The worktree was clean and `main` matched `origin/main` immediately after the push.
 
 ### Backend test coverage milestone
 
