@@ -17,6 +17,8 @@ if (isProduction && !process.env.JWT_SECRET) {
 }
 const JWT_SECRET = process.env.JWT_SECRET ?? "local-development-secret-change-me";
 const clientOrigin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
+const RATE_LIMIT_WINDOW_MS = 60_000;
 app.use(cors({ origin: clientOrigin, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
@@ -37,10 +39,10 @@ const rateLimit = (scope: string) => (req: Request, res: Response, next: NextFun
   const key = attemptKey(scope, req);
   const current = attempts.get(key);
   if (!current || current.resetAt <= now) {
-    attempts.set(key, { count: 1, resetAt: now + 60_000 });
+    attempts.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return next();
   }
-  if (current.count >= 5) {
+  if (current.count >= RATE_LIMIT_MAX_ATTEMPTS) {
     res.setHeader("Retry-After", Math.ceil((current.resetAt - now) / 1000));
     return res.status(429).json({ error: "Too many attempts. Please try again later." });
   }

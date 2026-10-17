@@ -43,21 +43,46 @@ describe("AlumniConnect API", () => {
     expect((await request(app).post("/api/auth/login").set("Origin", "http://localhost:5173").send({ email: "student@alumni-connect.local", password: "DemoPass123!" })).status).toBe(200);
   });
 
-  it("rate-limits repeated login attempts without affecting other accounts", async () => {
+  it("allows five login attempts, then returns 429 with a retry window", async () => {
     const email = `limited-${Date.now()}@example.test`;
     const responses = [];
     for (let attempt = 0; attempt < 6; attempt += 1) responses.push(await request(app).post("/api/auth/login").send({ email, password: "wrong-password" }));
     expect(responses.slice(0, 5).every(response => response.status === 401)).toBe(true);
     expect(responses[5].status).toBe(429);
+    expect(Number(responses[5].headers["retry-after"])).toBeGreaterThan(0);
+  });
+
+  it("resets the login limit after a successful login and isolates account keys", async () => {
+    const email = `reset-login-${Date.now()}@example.test`;
+    const limited = [];
+    for (let attempt = 0; attempt < 4; attempt += 1) limited.push(await request(app).post("/api/auth/login").send({ email, password: "wrong-password" }));
+    expect(limited.every(response => response.status === 401)).toBe(true);
+
+    const successfulLogin = await request(app).post("/api/auth/login").send({ email: "student@alumni-connect.local", password: "DemoPass123!" });
+    expect(successfulLogin.status).toBe(200);
+
+    const afterReset = await request(app).post("/api/auth/login").send({ email, password: "wrong-password" });
+    expect(afterReset.status).toBe(401);
     expect((await request(app).post("/api/auth/login").send({ email: "student@alumni-connect.local", password: "DemoPass123!" })).status).toBe(200);
   });
 
-  it("rate-limits repeated registration attempts for the same email", async () => {
+  it("rate-limits registration attempts and resets after a successful registration", async () => {
     const email = `register-limited-${Date.now()}@example.test`;
     const responses = [];
-    for (let attempt = 0; attempt < 6; attempt += 1) responses.push(await request(app).post("/api/auth/register").send({ name: "A", email, password: "short", role: "student" }));
-    expect(responses.slice(0, 5).every(response => response.status === 400)).toBe(true);
-    expect(responses[5].status).toBe(429);
+    for (let attempt = 0; attempt < 4; attempt += 1) responses.push(await request(app).post("/api/auth/register").send({ name: "A", email, password: "short", role: "student" }));
+    expect(responses.every(response => response.status === 400)).toBe(true);
+
+    const registered = await request(app).post("/api/auth/register").send({ name: "Reset User", email, password, role: "student" });
+    expect(registered.status).toBe(201);
+
+    const afterReset = await request(app).post("/api/auth/register").send({ name: "Duplicate", email, password, role: "student" });
+    expect(afterReset.status).toBe(409);
+
+    const exceededEmail = `register-exceeded-${Date.now()}@example.test`;
+    const exceeded = [];
+    for (let attempt = 0; attempt < 6; attempt += 1) exceeded.push(await request(app).post("/api/auth/register").send({ name: "A", email: exceededEmail, password: "short", role: "student" }));
+    expect(exceeded.slice(0, 5).every(response => response.status === 400)).toBe(true);
+    expect(exceeded[5].status).toBe(429);
   });
 
   it("logs in the seeded demo student and exposes protected data", async () => {

@@ -221,6 +221,15 @@
 - Final local verification after that push: `main` is synchronized with `origin/main`; no uncommitted changes were present before this final log update.
 - The hosted run for the synchronization-only commit is not required to establish new application coverage because the preceding application commit's hosted run `39043662079` passed; this status is recorded explicitly rather than inferred.
 
+### Rate-limiting verification
+
+- Read the existing limiter in [server/src/index.ts](../server/src/index.ts) and confirmed separate `login` and `register` scopes, keys based on request IP plus normalized email, a five-attempt/60-second window, `Retry-After` on rejection, and counter deletion after successful authentication or registration.
+- Added named limiter constants in [server/src/index.ts](../server/src/index.ts) without changing the existing policy values.
+- Expanded [server/src/index.test.ts](../server/src/index.test.ts) with focused assertions for five allowed attempts, the sixth-attempt `429` response and positive `Retry-After`, successful-login reset, account-key isolation, successful-registration reset, duplicate-email behavior after reset, and registration limit exhaustion.
+- Documentation already states that this limiter is in memory and requires shared storage before running multiple application instances; no Redis, infrastructure, or new dependency was added.
+- Validation: `npm test -- --run server/src/index.test.ts` passed with 1 test file and 23 tests; `git diff --check` passed. No rate-limit failures remain.
+- Additional validation: `npm run build` passed with TypeScript compilation and Vite production bundling; `git diff --check` passed again.
+
 ### Frontend accessibility and state primitives
 
 - Read this work log and confirmed `main` was clean and synchronized before starting the frontend follow-up.
