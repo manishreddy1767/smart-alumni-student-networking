@@ -199,6 +199,42 @@
 - Work-log synchronization commit `a205dec` (`Record CI batch push status`) was pushed successfully to `origin/main`.
 - Final handoff status: `main` matches `origin/main` and no uncommitted changes remain.
 
+### Frontend accessibility and state primitives
+
+- Read this work log and confirmed `main` was clean and synchronized before starting the frontend follow-up.
+- Updated [client/src/main.tsx](../client/src/main.tsx) with accessible navigation/current-page attributes, explicit labels for icon controls, and reusable loading, error, empty, and pagination components.
+- No tests or builds were run for this slice yet; implementation continues with the feature-specific frontend changes.
+
+### Frontend workflow completion slice
+
+- Replaced mentorship scheduling `prompt()` entry with an availability lookup and accessible selector using the existing `/api/mentorship/availability` and `/api/mentorship/:id/schedule` endpoints.
+- Added session complete/cancel actions using the existing session PATCH endpoint.
+- Added alumni and opportunity pagination controls using the existing `page`, `pageSize`, and `total` response metadata.
+- Added application status select controls for authorized application owners.
+- Expanded administration with alumni verification and the existing audit-log response.
+- Added loading, error, retry, empty, and live-status states to the updated views.
+- Added semantic labels, focus-visible styles, screen-reader labels, current navigation state, and responsive audit/status styling.
+- Validation is pending; no results are recorded yet.
+
+### Frontend smoke test discovery fix
+
+- Updated [vitest.config.ts](../vitest.config.ts) so the canonical `npm test` command includes the new client TypeScript and TSX smoke tests alongside the backend suite.
+- The preceding validation passed the backend-only 22-test suite and build, but did not discover the frontend test; this configuration fix addresses that coverage gap before final validation.
+
+### Frontend validation
+
+- `npm test` passed: 2 test files and 24 tests passed, including the new frontend smoke tests and all 22 backend tests.
+- `npm run build` passed: TypeScript compilation and Vite production bundling completed successfully.
+- `git diff --check` passed with no whitespace errors.
+- Final diff review covered [client/src/main.tsx](../client/src/main.tsx), [client/src/styles.css](../client/src/styles.css), [client/src/frontend-smoke.test.tsx](../client/src/frontend-smoke.test.tsx), [vitest.config.ts](../vitest.config.ts), and this work log.
+- Commit and push are pending; no commit hash or push result is recorded yet.
+
+### Frontend smoke coverage
+
+- Exported the reusable loading and pagination primitives from [client/src/main.tsx](../client/src/main.tsx) and guarded the browser root mount so server-side smoke rendering is safe.
+- Added [client/src/frontend-smoke.test.tsx](../client/src/frontend-smoke.test.tsx), covering accessible multi-page pagination markup and the live loading state using the existing Vitest/React dependencies.
+- Validation is pending; no results are recorded yet.
+
 ### Security and database hardening milestone
 
 - Read this work log and confirmed a clean `main` branch at `442f9b0` before changes.
