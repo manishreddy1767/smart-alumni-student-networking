@@ -199,6 +199,16 @@
 - Work-log synchronization commit `a205dec` (`Record CI batch push status`) was pushed successfully to `origin/main`.
 - Final handoff status: `main` matches `origin/main` and no uncommitted changes remain.
 
+### Security and database hardening milestone
+
+- Read this work log and confirmed a clean `main` branch at `442f9b0` before changes.
+- Added focused backend protections in [server/src/index.ts](../server/src/index.ts): login/registration throttling (five attempts per minute per IP/email key), origin/referer CSRF checks for state-changing requests, security headers, session-version validation, session invalidation after account status changes, public profile email privacy, and explicit SQLite constraint versus unexpected-error handling.
+- Added schema versioning and a safe forward migration in [server/src/db.ts](../server/src/db.ts): `schema_meta` tracks application version `2`, and existing databases receive `users.session_version` only when absent; no tables or data are dropped.
+- Added focused security/migration tests in [server/src/index.test.ts](../server/src/index.test.ts) for headers/CSRF, login and registration throttling, session invalidation, email privacy, and schema preservation.
+- Updated [README.md](../README.md) with the security behavior, rate-limit scaling limitation, migration policy, and tested backup/restore procedure. The backup command is documented, not executed against production data.
+- First hardening test run exposed three test-isolation issues and two TypeScript errors; adjusted successful-login throttling reset, used unique registered mentors, and added the JWT payload guard.
+- Final validation: `npm test` passed all 22 tests in 16.60 seconds; `npm run build` passed in 3.69 seconds; `git diff --check` passed.
+
 ### Backend test coverage milestone
 
 - Read the work log and confirmed a clean `main` branch at `7e191fb` before changes.

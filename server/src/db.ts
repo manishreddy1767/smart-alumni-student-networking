@@ -7,15 +7,25 @@ const dataDir = path.resolve(process.env.DATABASE_PATH ?? "server/data/app.db", 
 fs.mkdirSync(dataDir, { recursive: true });
 export const db = new Database(process.env.DATABASE_PATH ?? "server/data/app.db");
 db.pragma("foreign_keys = ON");
+const SCHEMA_VERSION = 2;
+
+function ensureColumn(table: string, column: string, definition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some(item => item.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
 
 export function initializeDatabase() {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_meta (
+      key TEXT PRIMARY KEY, version INTEGER NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL, name TEXT NOT NULL,
       role TEXT NOT NULL CHECK (role IN ('student','alumni','admin')),
       status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','pending','suspended')),
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      session_version INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -77,6 +87,10 @@ export function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_availability_alumni ON mentor_availability(alumni_id, starts_at);
     CREATE INDEX IF NOT EXISTS idx_applications_student ON applications(student_id, status);
   `);
+  ensureColumn("users", "session_version", "INTEGER NOT NULL DEFAULT 0");
+  const current = db.prepare("SELECT version FROM schema_meta WHERE key='app'").get() as { version: number } | undefined;
+  if (!current) db.prepare("INSERT INTO schema_meta (key,version) VALUES ('app',?)").run(SCHEMA_VERSION);
+  else if (current.version < SCHEMA_VERSION) db.prepare("UPDATE schema_meta SET version=? WHERE key='app'").run(SCHEMA_VERSION);
   seed();
 }
 

@@ -1,6 +1,7 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import app from "./index.js";
+import { db } from "./db.js";
 
 const password = "TestPass123!";
 const login = async (email: string) => {
@@ -31,6 +32,32 @@ describe("AlumniConnect API", () => {
     });
     expect(response.status).toBe(401);
     expect(response.body.error).toContain("incorrect");
+  });
+
+  it("applies security headers and blocks cross-site state changes", async () => {
+    const health = await request(app).get("/api/health");
+    expect(health.headers["x-content-type-options"]).toBe("nosniff");
+    expect(health.headers["x-frame-options"]).toBe("DENY");
+    expect(health.headers["content-security-policy"]).toContain("frame-ancestors");
+    expect((await request(app).post("/api/auth/login").set("Origin", "https://evil.example").send({ email: "x@example.test", password: "wrong" })).status).toBe(403);
+    expect((await request(app).post("/api/auth/login").set("Origin", "http://localhost:5173").send({ email: "student@alumni-connect.local", password: "DemoPass123!" })).status).toBe(200);
+  });
+
+  it("rate-limits repeated login attempts without affecting other accounts", async () => {
+    const email = `limited-${Date.now()}@example.test`;
+    const responses = [];
+    for (let attempt = 0; attempt < 6; attempt += 1) responses.push(await request(app).post("/api/auth/login").send({ email, password: "wrong-password" }));
+    expect(responses.slice(0, 5).every(response => response.status === 401)).toBe(true);
+    expect(responses[5].status).toBe(429);
+    expect((await request(app).post("/api/auth/login").send({ email: "student@alumni-connect.local", password: "DemoPass123!" })).status).toBe(200);
+  });
+
+  it("rate-limits repeated registration attempts for the same email", async () => {
+    const email = `register-limited-${Date.now()}@example.test`;
+    const responses = [];
+    for (let attempt = 0; attempt < 6; attempt += 1) responses.push(await request(app).post("/api/auth/register").send({ name: "A", email, password: "short", role: "student" }));
+    expect(responses.slice(0, 5).every(response => response.status === 400)).toBe(true);
+    expect(responses[5].status).toBe(429);
   });
 
   it("logs in the seeded demo student and exposes protected data", async () => {
@@ -100,11 +127,21 @@ describe("AlumniConnect API", () => {
 
   it("rejects suspended-account login", async () => {
     const created = await register("student");
+    const existingSession = created.agent;
     const admin = await login("admin@alumni-connect.local");
     expect((await admin.patch(`/api/admin/users/${created.id}/status`).send({ status: "suspended" })).status).toBe(200);
+    expect((await existingSession.get("/api/auth/me")).status).toBe(401);
     const suspended = await request(app).post("/api/auth/login").send({ email: created.email, password });
     expect(suspended.status).toBe(403);
     expect((await admin.patch(`/api/admin/users/${created.id}/status`).send({ status: "active" })).status).toBe(200);
+  });
+
+  it("records the current schema version and preserves existing database data", () => {
+    const version = db.prepare("SELECT version FROM schema_meta WHERE key='app'").get() as { version: number };
+    const user = db.prepare("SELECT email,session_version FROM users WHERE email=?").get("student@alumni-connect.local") as { email: string; session_version: number };
+    expect(version.version).toBeGreaterThanOrEqual(2);
+    expect(user.email).toBe("student@alumni-connect.local");
+    expect(user.session_version).toBeGreaterThanOrEqual(0);
   });
 
   it("enforces role authorization boundaries", async () => {
@@ -120,7 +157,9 @@ describe("AlumniConnect API", () => {
     const profile = { headline: "", bio: "", company: "", job_title: "", industry: "", location: "", skills: "", interests: "", available_for_mentoring: false, visibility: "private" };
     expect((await owner.agent.patch("/api/profiles/me").send(profile)).status).toBe(200);
     expect((await other.agent.get(`/api/profiles/${owner.id}`)).status).toBe(404);
-    expect((await owner.agent.get(`/api/profiles/${owner.id}`)).status).toBe(200);
+    const self = await owner.agent.get(`/api/profiles/${owner.id}`);
+    expect(self.status).toBe(200);
+    expect(self.body.profile.email).toBeUndefined();
   });
 
   it("completes a connection request lifecycle and persists accepted state", async () => {
@@ -147,15 +186,18 @@ describe("AlumniConnect API", () => {
 
   it("schedules, lists, cancels, and completes mentorship sessions with ownership checks", async () => {
     const student = await register("student");
-    const alumni = await login("alumni@alumni-connect.local");
+    const alumniAccount = await register("alumni");
+    const admin = await login("admin@alumni-connect.local");
+    expect((await admin.patch(`/api/admin/alumni/${alumniAccount.id}/verify`)).status).toBe(200);
+    expect((await alumniAccount.agent.patch("/api/profiles/me").send({ headline: "", bio: "", company: "", job_title: "", industry: "", location: "", skills: "", interests: "", available_for_mentoring: true, visibility: "public" })).status).toBe(200);
     const start = new Date(Date.now() + 259200000);
-    const availability = await alumni.post("/api/mentorship/availability").send({ starts_at: start.toISOString(), ends_at: new Date(start.getTime() + 1800000).toISOString() });
+    const availability = await alumniAccount.agent.post("/api/mentorship/availability").send({ starts_at: start.toISOString(), ends_at: new Date(start.getTime() + 1800000).toISOString() });
     expect(availability.status).toBe(201);
-    const requestToSeededMentor = await student.agent.post("/api/mentorship/2").send({ message: "I would like to discuss career options." });
+    const requestToSeededMentor = await student.agent.post(`/api/mentorship/${alumniAccount.id}`).send({ message: "I would like to discuss career options." });
     expect(requestToSeededMentor.status).toBe(201);
-    const requests = await alumni.get("/api/mentorship");
+    const requests = await alumniAccount.agent.get("/api/mentorship");
     const mentorship = requests.body.requests.find((row: any) => row.student_id === student.id);
-    expect((await alumni.patch(`/api/mentorship/${mentorship.id}`).send({ status: "accepted" })).status).toBe(200);
+    expect((await alumniAccount.agent.patch(`/api/mentorship/${mentorship.id}`).send({ status: "accepted" })).status).toBe(200);
     const wrongUser = await register("student");
     expect((await wrongUser.agent.post(`/api/mentorship/${mentorship.id}/schedule`).send({ availability_id: availability.body.id })).status).toBe(400);
     const scheduled = await student.agent.post(`/api/mentorship/${mentorship.id}/schedule`).send({ availability_id: availability.body.id, meeting_link: "https://example.com/session" });
@@ -163,7 +205,7 @@ describe("AlumniConnect API", () => {
     const sessions = await student.agent.get("/api/mentorship/sessions");
     expect(sessions.body.sessions.find((session: any) => session.id === scheduled.body.id).status).toBe("scheduled");
     expect((await student.agent.patch(`/api/mentorship/sessions/${scheduled.body.id}`).send({ status: "cancelled" })).status).toBe(200);
-    expect((await alumni.get("/api/mentorship/sessions")).body.sessions.find((session: any) => session.id === scheduled.body.id).status).toBe("cancelled");
+    expect((await alumniAccount.agent.get("/api/mentorship/sessions")).body.sessions.find((session: any) => session.id === scheduled.body.id).status).toBe("cancelled");
   });
 
   it("moderates opportunities with admin authorization and persists status", async () => {

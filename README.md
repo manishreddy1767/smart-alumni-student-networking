@@ -69,4 +69,14 @@ The API test suite covers health, invalid credentials, seeded login, protected d
 
 ## Deployment notes
 
-The production process is a single Node.js service: build the client and server with `npm run build`, then start Express with `npm start`. Configure `NODE_ENV=production`, a long random `JWT_SECRET`, `CLIENT_ORIGIN` for the deployed frontend origin, `PORT`, and a writable `DATABASE_PATH`. SQLite is suitable for a small single-instance deployment; use a managed relational database before scaling to multiple application instances. The repository CI workflow runs `npm ci`, `npm test`, and `npm run build` for pushes and pull requests targeting `main`.
+The production process is a single Node.js service: build the client and server with `npm run build`, then start Express with `npm start`. Configure `NODE_ENV=production`, a long random `JWT_SECRET`, `CLIENT_ORIGIN` for the deployed frontend origin, `PORT`, and a writable `DATABASE_PATH`. State-changing requests with a browser `Origin` or `Referer` are restricted to `CLIENT_ORIGIN`; login and registration attempts are rate-limited in memory per IP/email key, so use a shared rate-limit store before running multiple instances. Session cookies are invalidated when an account status changes, and public profile responses do not expose email addresses. SQLite is suitable for a small single-instance deployment; use a managed relational database before scaling to multiple application instances. The repository CI workflow runs `npm ci`, `npm test`, and `npm run build` for pushes and pull requests targeting `main`.
+
+### Database migrations and backup
+
+The database initializer maintains an `app` schema version in `schema_meta` and applies only forward-compatible changes. It never drops tables or resets existing data. Before upgrades, stop the application and copy the SQLite database file to a protected backup location:
+
+```powershell
+Copy-Item server\data\app.db server\data\backups\app-$(Get-Date -Format yyyyMMdd-HHmmss).db
+```
+
+To restore, stop the application, preserve the current database for investigation, and copy a verified backup back to the configured `DATABASE_PATH`. Restore procedures should be tested before production use; SQLite backups are not encrypted by this application and must be protected by the deployment environment.

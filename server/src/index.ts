@@ -20,13 +20,60 @@ const clientOrigin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
 app.use(cors({ origin: clientOrigin, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'");
+  next();
+});
 
-type AuthRequest = Request & { user?: { id: number; role: string; name: string; email: string } };
+type AuthRequest = Request & { user?: { id: number; role: string; name: string; email: string; sessionVersion: number } };
+const attempts = new Map<string, { count: number; resetAt: number }>();
+const attemptKey = (scope: string, req: Request) => `${scope}:${req.ip}:${String(req.body?.email ?? "").toLowerCase()}`;
+const rateLimit = (scope: string) => (req: Request, res: Response, next: NextFunction) => {
+  const now = Date.now();
+  const key = attemptKey(scope, req);
+  const current = attempts.get(key);
+  if (!current || current.resetAt <= now) {
+    attempts.set(key, { count: 1, resetAt: now + 60_000 });
+    return next();
+  }
+  if (current.count >= 5) {
+    res.setHeader("Retry-After", Math.ceil((current.resetAt - now) / 1000));
+    return res.status(429).json({ error: "Too many attempts. Please try again later." });
+  }
+  current.count += 1;
+  next();
+};
+const csrf = (req: Request, res: Response, next: NextFunction) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+  const origin = req.get("origin");
+  const referer = req.get("referer");
+  let source = origin;
+  if (!source && referer) {
+    try { source = new URL(referer).origin; } catch { return res.status(403).json({ error: "Cross-site request blocked." }); }
+  }
+  if (source && source !== clientOrigin) return res.status(403).json({ error: "Cross-site request blocked." });
+  next();
+};
+app.use(csrf);
+const isConstraintError = (error: unknown) => error instanceof Error && /SQLITE_CONSTRAINT|UNIQUE constraint failed/i.test(error.message);
+const handleDatabaseError = (res: Response, error: unknown, conflictMessage: string) => {
+  if (isConstraintError(error)) return res.status(409).json({ error: conflictMessage });
+  console.error(error);
+  return res.status(500).json({ error: "Unable to complete the database operation right now." });
+};
 const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.cookies.session;
   if (!token) return res.status(401).json({ error: "Please sign in to continue." });
   try {
-    req.user = jwt.verify(token, JWT_SECRET) as AuthRequest["user"];
+    const payload = jwt.verify(token, JWT_SECRET) as AuthRequest["user"] | undefined;
+    if (!payload) return res.status(401).json({ error: "Your session is invalid. Please sign in again." });
+    const current = db.prepare("SELECT status,session_version FROM users WHERE id=?").get(payload.id) as { status: string; session_version: number } | undefined;
+    if (!current || current.status === "suspended" || current.session_version !== payload.sessionVersion) return res.status(401).json({ error: "Your session is no longer valid. Please sign in again." });
+    req.user = payload;
     next();
   } catch { return res.status(401).json({ error: "Your session has expired. Please sign in again." }); }
 };
@@ -40,7 +87,7 @@ const notify = (userId: number, title: string, body: string) => db.prepare("INSE
 const parseSkills = (value: unknown) => String(value ?? "").split(",").map(s => s.trim()).filter(Boolean);
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", rateLimit("register"), (req, res) => {
   const parsed = z.object({ name: z.string().min(2), email: z.string().email(), password: z.string().min(8), role: z.enum(["student", "alumni"]) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Enter a name, valid email, and password of at least 8 characters." });
   const { name, email, password, role: userRole } = parsed.data;
@@ -48,21 +95,22 @@ app.post("/api/auth/register", (req, res) => {
     const result = db.prepare("INSERT INTO users (email,password_hash,name,role) VALUES (?,?,?,?)").run(email.toLowerCase(), bcrypt.hashSync(password, 10), name, userRole);
     const id = Number(result.lastInsertRowid);
     db.prepare("INSERT INTO profiles (user_id,headline,verified) VALUES (?,?,?)").run(id, userRole === "student" ? "New student member" : "Alumni profile awaiting verification", userRole === "student" ? 1 : 0);
-    const token = jwt.sign({ id, email: email.toLowerCase(), name, role: userRole }, JWT_SECRET, { expiresIn: "2h" });
+    const token = jwt.sign({ id, email: email.toLowerCase(), name, role: userRole, sessionVersion: 0 }, JWT_SECRET, { expiresIn: "2h" });
+    attempts.delete(attemptKey("register", req));
     res.cookie("session", token, { httpOnly: true, sameSite: "lax", secure: isProduction, maxAge: 7200000 });
     return res.status(201).json({ user: { id, email: email.toLowerCase(), name, role: userRole, status: "active" } });
   } catch (error) {
-    if (String(error).includes("UNIQUE")) return res.status(409).json({ error: "An account with that email already exists." });
-    return res.status(500).json({ error: "Unable to create your account right now." });
+    return handleDatabaseError(res, error, "An account with that email already exists.");
   }
 });
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", rateLimit("login"), (req, res) => {
   const parsed = z.object({ email: z.string().email(), password: z.string() }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Enter a valid email and password." });
   const user = db.prepare("SELECT * FROM users WHERE email = ?").get(parsed.data.email.toLowerCase()) as Record<string, unknown> | undefined;
   if (!user || !bcrypt.compareSync(parsed.data.password, String(user.password_hash))) return res.status(401).json({ error: "Email or password is incorrect." });
   if (user.status === "suspended") return res.status(403).json({ error: "This account has been suspended. Contact an administrator." });
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: "2h" });
+  attempts.delete(attemptKey("login", req));
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, sessionVersion: Number(user.session_version ?? 0) }, JWT_SECRET, { expiresIn: "2h" });
   res.cookie("session", token, { httpOnly: true, sameSite: "lax", secure: isProduction, maxAge: 7200000 });
   return res.json({ user: safeUser(user) });
 });
@@ -100,7 +148,7 @@ app.get("/api/profiles", auth, (req, res) => {
   res.json({ profiles: db.prepare(sql).all(...params).map((p: any) => ({ ...p, skills: parseSkills(p.skills), interests: parseSkills(p.interests) })), page, pageSize, total });
 });
 app.get("/api/profiles/:id", auth, (req: AuthRequest, res) => {
-  const profile = db.prepare(`SELECT u.id,u.name,u.email,u.role,u.status,p.* FROM users u JOIN profiles p ON p.user_id=u.id WHERE u.id=?`).get(Number(req.params.id)) as any;
+  const profile = db.prepare(`SELECT u.id,u.name,u.role,u.status,p.* FROM users u JOIN profiles p ON p.user_id=u.id WHERE u.id=?`).get(Number(req.params.id)) as any;
   if (!profile || (profile.visibility !== "public" && profile.id !== req.user!.id)) return res.status(404).json({ error: "Profile not found." });
   res.json({ profile: { ...profile, skills: parseSkills(profile.skills), interests: parseSkills(profile.interests) } });
 });
@@ -123,7 +171,7 @@ app.post("/api/connections/:userId", auth, (req: AuthRequest, res) => {
   const target = Number(req.params.userId);
   if (target === req.user!.id || !db.prepare("SELECT id FROM users WHERE id=?").get(target)) return res.status(400).json({ error: "That connection is not available." });
   try { db.prepare("INSERT INTO connection_requests (sender_id,receiver_id) VALUES (?,?)").run(req.user!.id, target); notify(target, "New connection request", `${req.user!.name} would like to connect with you.`); res.status(201).json({ message: "Connection request sent." }); }
-  catch { res.status(409).json({ error: "A connection request already exists." }); }
+  catch (error) { return handleDatabaseError(res, error, "A connection request already exists."); }
 });
 app.patch("/api/connections/:id", auth, (req: AuthRequest, res) => {
   const parsed = z.object({ status: z.enum(["accepted", "rejected", "cancelled"]) }).safeParse(req.body);
@@ -167,7 +215,7 @@ app.post("/api/mentorship/:alumniId(\\d+)", auth, role("student"), (req: AuthReq
   const mentor = db.prepare("SELECT u.id FROM users u JOIN profiles p ON p.user_id=u.id WHERE u.id=? AND u.role='alumni' AND p.available_for_mentoring=1 AND p.verified=1").get(alumniId);
   if (!mentor) return res.status(404).json({ error: "That mentor is not accepting requests right now." });
   try { db.prepare("INSERT INTO mentorship_requests (student_id,alumni_id,message) VALUES (?,?,?)").run(req.user!.id, alumniId, parsed.data.message); notify(alumniId, "New mentorship request", `${req.user!.name} would like your guidance.`); res.status(201).json({ message: "Mentorship request sent." }); }
-  catch { res.status(409).json({ error: "You already have a mentorship request with this alumnus." }); }
+  catch (error) { return handleDatabaseError(res, error, "You already have a mentorship request with this alumnus."); }
 });
 app.patch("/api/mentorship/:id", auth, (req: AuthRequest, res) => {
   const parsed = z.object({ status: z.enum(["accepted", "rejected", "cancelled"]) }).safeParse(req.body);
@@ -229,7 +277,7 @@ app.post("/api/opportunities/:id/apply", auth, role("student"), (req: AuthReques
   const opportunity = db.prepare("SELECT id,title,creator_id FROM opportunities WHERE id=? AND status='published' AND deadline >= date('now')").get(Number(req.params.id)) as any;
   if (!parsed.success || !opportunity) return res.status(404).json({ error: "This opportunity is no longer accepting applications." });
   try { db.prepare("INSERT INTO applications (opportunity_id,student_id,cover_note) VALUES (?,?,?)").run(opportunity.id, req.user!.id, parsed.data.cover_note); notify(opportunity.creator_id, "New opportunity application", `${req.user!.name} applied for ${opportunity.title}.`); res.status(201).json({ message: "Application submitted." }); }
-  catch { res.status(409).json({ error: "You have already applied to this opportunity." }); }
+  catch (error) { return handleDatabaseError(res, error, "You have already applied to this opportunity."); }
 });
 app.patch("/api/applications/:id", auth, role("alumni", "admin"), (req: AuthRequest, res) => {
   const parsed = z.object({ status: z.enum(["reviewing", "shortlisted", "rejected"]) }).safeParse(req.body);
@@ -266,7 +314,7 @@ app.patch("/api/admin/users/:id/status", auth, role("admin"), (req: AuthRequest,
   const parsed = z.object({ status: z.enum(["active", "suspended"]) }).safeParse(req.body);
   const id = Number(req.params.id);
   if (!parsed.success || id === req.user!.id || !db.prepare("SELECT id FROM users WHERE id=?").get(id)) return res.status(400).json({ error: "Invalid account status update." });
-  db.prepare("UPDATE users SET status=? WHERE id=?").run(parsed.data.status, id);
+  db.prepare("UPDATE users SET status=?,session_version=session_version+1 WHERE id=?").run(parsed.data.status, id);
   db.prepare("INSERT INTO audit_logs (actor_id,action,entity,entity_id) VALUES (?,?,?,?)").run(req.user!.id, `${parsed.data.status} account`, "user", id);
   res.json({ message: "Account status updated." });
 });
