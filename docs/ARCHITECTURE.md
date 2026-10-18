@@ -53,5 +53,5 @@ The API uses `server/data/app.db` by default. Set `DATABASE_PATH`, `JWT_SECRET`,
 
 - SQLite and the in-memory login/registration limiter are designed for local development and small single-instance deployments. SQLite serializes writes; the application uses a five-second busy timeout, but concurrent write-heavy or multi-instance workloads should move to a managed relational database and shared rate-limit store.
 - The application provides schema versioning and additive forward migrations, but it has no backup service; stopped-application SQLite file copies and restore verification remain operator responsibilities. SQLite backups are unencrypted and should be tested on a separate copy before replacement.
-- CI verifies installation, tests, and the production build; it does not provision infrastructure or run browser automation.
-- Accessibility coverage currently consists of semantic markup, keyboard-focus styling, labels, responsive behavior, and frontend smoke tests. A dedicated automated WCAG scanner is not part of the repository.
+- CI verifies installation, the Vitest suite, the production build, and the Playwright Chromium smoke suite; it does not provision infrastructure or validate a hosted deployment.
+- Accessibility coverage consists of semantic markup, keyboard-focus styling, labels, responsive behavior, frontend smoke tests, and a scoped axe-core scan for document structure and accessible names. This is not full WCAG conformance testing; detailed color-contrast review and assistive-technology testing remain additional work.

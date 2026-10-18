@@ -26,7 +26,7 @@ AlumniConnect gives students and verified alumni one trusted place to discover o
 - Express and TypeScript
 - SQLite via `better-sqlite3`
 - Zod validation, bcryptjs password hashing, signed JWT cookies
-- Vitest and Supertest
+- Vitest, Supertest, Playwright, and axe-core
 
 The rationale and system/data architecture are documented in [`docs/DECISIONS.md`](docs/DECISIONS.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -73,7 +73,7 @@ The canonical Vitest suite includes 24 backend integration tests and 2 frontend 
 
 ## Deployment notes
 
-The production process is a single Node.js service: build the client and server with `npm run build`, then start Express with `npm start`. Configure `NODE_ENV=production`, a long random `JWT_SECRET`, `CLIENT_ORIGIN` for the deployed frontend origin, `PORT`, and a writable `DATABASE_PATH`. State-changing requests with a browser `Origin` or `Referer` are restricted to `CLIENT_ORIGIN`; login and registration attempts are rate-limited in memory per IP/email key, so use a shared rate-limit store before running multiple instances. Session cookies are invalidated when an account status changes, and public profile responses do not expose email addresses. SQLite is suitable for local development and small single-instance deployments: it serializes writes, and this app waits briefly on a locked database, but it is not a substitute for a multi-instance production database. Move to a managed relational database when write contention, multiple application instances, operational durability, or workload growth make SQLite's single-file and concurrent-write limits unsuitable. The repository CI workflow runs `npm ci`, `npm test`, and `npm run build` for pushes and pull requests targeting `main`.
+The production process is a single Node.js service: build the client and server with `npm run build`, then start Express with `npm start`. Configure `NODE_ENV=production`, a long random `JWT_SECRET`, `CLIENT_ORIGIN` for the deployed frontend origin, `PORT`, and a writable `DATABASE_PATH`. State-changing requests with a browser `Origin` or `Referer` are restricted to `CLIENT_ORIGIN`; login and registration attempts are rate-limited in memory per IP/email key, so use a shared rate-limit store before running multiple instances. Session cookies are invalidated when an account status changes, and public profile responses do not expose email addresses. SQLite is suitable for local development and small single-instance deployments: it serializes writes, and this app waits briefly on a locked database, but it is not a substitute for a multi-instance production database. Move to a managed relational database when write contention, multiple application instances, operational durability, or workload growth make SQLite's single-file and concurrent-write limits unsuitable. The repository CI workflow runs `npm ci`, `npm test`, `npm run build`, installs Chromium, and runs `npm run test:e2e` for pushes and pull requests targeting `main`.
 
 The repository includes a focused Playwright browser smoke suite and a scoped axe-core scan. The scan is not a WCAG conformance claim; remaining color-contrast findings outside the shared tokens require further visual review. Browser tests use an isolated temporary database and do not validate deployment infrastructure or hosted browser availability.
 

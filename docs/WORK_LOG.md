@@ -445,3 +445,20 @@
 - Validation: `npm test` passed with 6 tests in 3.63 seconds; `npm run build` passed in 2.54 seconds; `git diff --check` passed.
 - Commit `4407fcd` (`Add CI workflow and deployment notes`) was pushed successfully to `origin/main`.
 - The worktree was clean and `main` matched `origin/main` after the push.
+
+### Final release-readiness review
+
+- Read [README.md](../README.md), [docs/ARCHITECTURE.md](ARCHITECTURE.md), [.github/workflows/ci.yml](../.github/workflows/ci.yml), [package.json](../package.json), and this work log. Git status was clean on `main`; latest local commit was `0951031`.
+- Hosted CI was checked through GitHub Actions. Run `39128844773` for commit `0951031f99d3de6e9746bd166cfc1cc4e470eb78` completed successfully. The run includes npm installation, Vitest tests, production build, Chromium installation, and Playwright smoke tests.
+- Documentation corrections: updated architecture boundaries to describe Playwright/axe-core coverage and its limitations; updated README stack, verification, and CI descriptions to match the current workflow.
+- Final local verification is pending and will record the actual full test, build, diff, and final Git results below.
+
+- Final commands:
+  - `npm test` exited `1`: 25 of 26 tests passed; the existing opportunity-moderation assertion failed because the shared persistent test database has accumulated opportunities and the test assumes the created item is on page one. This is the previously documented fixture-state limitation; no production code was changed.
+  - `npm run build` exited `0`: TypeScript compilation and Vite production bundling passed.
+  - `git diff --check` exited `0`: no whitespace errors.
+- The browser suite was not rerun because this review changed documentation only; its prior verified result remains 5 of 5 tests passed. A fresh isolated full Vitest run is being used to distinguish the known shared-database fixture issue from application regressions.
+
+- Isolated command: `$env:DATABASE_PATH=<exact temporary path>; npm test`, followed by removal of that database and its SQLite sidecars.
+- Isolated result: exited `0`; 2 test files and all 26 tests passed in 11.88 seconds. Cleanup completed for the exact temporary paths.
+- Release-readiness conclusion: local academic demonstration is supported; production deployment, production backup/restore, full WCAG conformance, and hosted deployment behavior remain unverified or outside scope.
