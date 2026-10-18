@@ -272,7 +272,8 @@
   - Both verification processes exited `0`; the exact temporary directory and files were removed afterward, and cleanup reported `cleanup_exists=False`.
 - The first verification attempt failed because the ad hoc Node command passed the SQLite filename as a script rather than an argument; it exited non-zero, cleaned its temporary directory, and was corrected without changing application code.
 - Limitation: file-copy backup requires the application to be stopped; it is not a live backup mechanism, does not encrypt data, and is not a substitute for managed backup/durability tooling at production scale.
-- Commit and push are pending for this documentation/verification milestone.
+- Commit `9eb8520` (`Verify SQLite backup and restore procedure`) was created and pushed successfully to `origin/main`.
+- The post-push work-log synchronization entry is pending its own commit and push.
 
 ### Frontend accessibility and state primitives
 
