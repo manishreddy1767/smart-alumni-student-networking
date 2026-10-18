@@ -1,5 +1,15 @@
 # Work Log
 
+## 2026-10-18
+
+### README refresh
+
+- Rewrote [README.md](../README.md) in a more natural, reader-friendly style without changing application code or dependencies.
+- Added a concise project introduction, project-status note, role-based feature overview, technology table, quick-start instructions, demo-account guidance, configuration reference, testing explanation, database/backup notes, security limitations, project layout, CI summary, and license link.
+- Preserved the documented limitations around SQLite single-instance use, in-memory rate limiting, scoped accessibility checks, unverified production deployment, and unverified full WCAG compliance.
+- No tests were run because this was a documentation-only change.
+- Git status before this change was clean and synchronized with `origin/main`; commit and push status for this README update will be recorded after review.
+
 ## 2026-10-17
 
 ### Baseline assessment

@@ -1,66 +1,118 @@
 # AlumniConnect
 
-Smart Alumni–Student Career Networking Platform for Vardhaman College of Engineering.
+### A practical career-networking platform for students and alumni
 
-AlumniConnect gives students and verified alumni one trusted place to discover one another, request mentorship, exchange connection requests, and share career opportunities. It is a locally runnable Software Engineering course project with a real Express API and SQLite persistence, not a static UI prototype.
+AlumniConnect is a full-stack Software Engineering project for Vardhaman College of Engineering. It gives students and verified alumni a focused place to find each other, ask for guidance, build professional connections, and share career opportunities.
 
-## Features
+This is a working application rather than a static UI mock-up. It includes a React frontend, an Express API, SQLite persistence, authentication, role-aware workflows, automated tests, and browser smoke tests.
 
-- Public landing page and responsive navigation.
-- Student, alumni, and administrator accounts with server-enforced role checks.
-- Secure bcrypt password hashing and HTTP-only JWT session cookies.
-- Student and alumni profile editing, visibility controls, skills, and interests.
-- Verified alumni discovery with search and mentoring availability filters.
-- Connection request lifecycle: send, accept, reject, and cancel.
-- Mentorship request lifecycle with alumni availability controls.
-- Mentorship session scheduling from open availability, with cancellation and completion actions.
-- Opportunity search and publishing with explicit demonstration-data labels.
-- Paginated alumni and opportunity discovery, with internal application status management.
-- In-app notifications with unread/read state.
-- Administrator dashboard for alumni verification, opportunity moderation, account moderation, and recent audit-log review.
-- SQLite schema with foreign keys, indexes, constraints, and deterministic seed data.
+> **Project status:** Ready for a local academic demonstration. Production deployment, full WCAG conformance, and horizontally scaled operation are not claimed or verified.
 
-## Stack
+## What you can do
 
-- React 18, Vite, and TypeScript
-- Express and TypeScript
-- SQLite via `better-sqlite3`
-- Zod validation, bcryptjs password hashing, signed JWT cookies
-- Vitest, Supertest, Playwright, and axe-core
+### Students
 
-The rationale and system/data architecture are documented in [`docs/DECISIONS.md`](docs/DECISIONS.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+- Create and update a professional profile.
+- Discover verified alumni by name, skills, interests, and mentoring availability.
+- Send and manage connection requests.
+- Request mentorship and schedule sessions from published availability.
+- Browse opportunities and track application status.
+- Read in-app notifications.
 
-## Run locally
+### Alumni
 
-Requirements: Node.js 22+ and npm 10+.
+- Build a profile with skills, interests, experience, and availability.
+- Accept or reject connection requests.
+- Publish mentoring availability and manage mentorship sessions.
+- Share career opportunities and review incoming applications.
+
+### Administrators
+
+- Verify alumni accounts.
+- Moderate opportunities.
+- Suspend or reactivate accounts.
+- Review recent audit-log activity.
+
+## Built with
+
+| Layer | Technology |
+| --- | --- |
+| Web client | React 18, Vite, TypeScript |
+| API | Express, TypeScript |
+| Database | SQLite with `better-sqlite3` |
+| Validation and security | Zod, bcryptjs, signed HTTP-only JWT cookies |
+| Testing | Vitest, Supertest, Playwright, axe-core |
+
+The architecture and design decisions are documented in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Get started
+
+### Prerequisites
+
+- Node.js 22 or newer
+- npm 10 or newer
+
+### Install and run in development
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>. The development server proxies `/api` to the Express server at port 4000.
+Then open <http://localhost:5173>.
 
-To verify a production build:
+The Vite development server serves the React client and proxies `/api` requests to the Express server on port `4000`.
+
+### Run the production build locally
 
 ```bash
 npm run build
 npm start
 ```
 
-The local SQLite database is created at `server/data/app.db`. Copy `.env.example` to `.env` and set `DATABASE_PATH`, `JWT_SECRET`, `PORT`, `CLIENT_ORIGIN`, or `NODE_ENV` when needed. Do not commit `.env` or database files. Production startup fails fast unless `JWT_SECRET` is explicitly configured; use a long randomly generated value and set `CLIENT_ORIGIN` to the deployed frontend origin.
+The production server serves the built client and API from one Node.js process. By default, the local database is created at `server/data/app.db`.
 
-## Demo accounts
+## Try the demo
 
-All seeded demo accounts use `DemoPass123!`. The seeded records are intentionally labeled demonstration content and are not real college records or live job listings.
+The application includes clearly labelled demonstration records so the main workflows can be explored without setting up accounts first.
 
-| Account | Email |
+All seeded accounts use:
+
+```text
+Password: DemoPass123!
+```
+
+| Role | Email |
 | --- | --- |
 | Student | `student@alumni-connect.local` |
 | Alumni | `alumni@alumni-connect.local` |
 | Administrator | `admin@alumni-connect.local` |
 
-## Verification
+These records are sample data only. They do not represent real college users, real alumni records, or live job listings.
+
+## Configuration
+
+For local overrides, copy `.env.example` to `.env`:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Available settings include:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `DATABASE_PATH` | SQLite database file | `server/data/app.db` |
+| `JWT_SECRET` | Secret used to sign sessions | Development fallback only |
+| `PORT` | Express server port | `4000` |
+| `CLIENT_ORIGIN` | Allowed browser origin for CORS and CSRF checks | `http://localhost:5173` |
+| `NODE_ENV` | Runtime mode | Development |
+
+Production startup requires an explicitly configured `JWT_SECRET`. Use a long, randomly generated value and set `CLIENT_ORIGIN` to the actual frontend origin. Never commit `.env` files, credentials, or database files.
+
+## Verify the project
+
+Run the canonical checks from the repository root:
 
 ```bash
 npm test
@@ -68,18 +120,28 @@ npm run build
 npm run test:e2e
 ```
 
-The API test suite covers health, invalid credentials, seeded login, protected dashboard/discovery data, and unauthenticated access.
-The canonical Vitest suite includes 24 backend integration tests and 2 frontend smoke tests (26 tests total). `npm run test:e2e` starts the production build with an isolated temporary SQLite database and runs headless Chromium smoke tests for navigation, authentication forms, registration, mobile layout, and focused axe-core structural checks. Install the local browser once with `npx playwright install chromium`.
+The test setup includes:
 
-## Deployment notes
+- **Vitest and Supertest:** backend integration coverage for authentication, authorization, security controls, persistence, and core workflows.
+- **Frontend smoke tests:** focused checks for important client states and interactions.
+- **Playwright:** five browser smoke tests covering landing-page navigation, authentication forms, registration and protected navigation, mobile rendering, and a representative accessibility scan.
+- **axe-core:** a deliberately scoped check for document structure and accessible names. It is useful feedback, not a full WCAG conformance assessment.
 
-The production process is a single Node.js service: build the client and server with `npm run build`, then start Express with `npm start`. Configure `NODE_ENV=production`, a long random `JWT_SECRET`, `CLIENT_ORIGIN` for the deployed frontend origin, `PORT`, and a writable `DATABASE_PATH`. State-changing requests with a browser `Origin` or `Referer` are restricted to `CLIENT_ORIGIN`; login and registration attempts are rate-limited in memory per IP/email key, so use a shared rate-limit store before running multiple instances. Session cookies are invalidated when an account status changes, and public profile responses do not expose email addresses. SQLite is suitable for local development and small single-instance deployments: it serializes writes, and this app waits briefly on a locked database, but it is not a substitute for a multi-instance production database. Move to a managed relational database when write contention, multiple application instances, operational durability, or workload growth make SQLite's single-file and concurrent-write limits unsuitable. The repository CI workflow runs `npm ci`, `npm test`, `npm run build`, installs Chromium, and runs `npm run test:e2e` for pushes and pull requests targeting `main`.
+Install the local Chromium browser once before running Playwright:
 
-The repository includes a focused Playwright browser smoke suite and a scoped axe-core scan. The scan is not a WCAG conformance claim; remaining color-contrast findings outside the shared tokens require further visual review. Browser tests use an isolated temporary database and do not validate deployment infrastructure or hosted browser availability.
+```bash
+npx playwright install chromium
+```
 
-### Database migrations and backup
+The browser suite starts the built application with an isolated temporary SQLite database, so it does not use or reset the normal local database.
 
-The database initializer maintains an `app` schema version in `schema_meta` and applies only forward-compatible changes. It never drops tables or resets existing data. The repository does not include a separate backup service or command: the supported mechanism is a file copy while the application is stopped, so no process can write during the copy. Before upgrades, create a protected backup directory and copy the configured SQLite database file:
+## Database, migrations, and backups
+
+The database initializer stores the current schema version in `schema_meta` and applies additive, forward-compatible changes. Re-running initialization does not drop tables or erase existing records. SQLite foreign keys, indexes, constraints, and a short busy timeout are enabled.
+
+SQLite works well for local development and a small, single-instance demonstration. It serializes writes, so a busy system or multiple application instances can experience contention. Move to a managed relational database when the application needs multiple instances, heavier write traffic, stronger operational durability, or larger-scale growth.
+
+There is no separate backup service or npm backup command. The supported procedure is a stopped-application file copy:
 
 ```powershell
 $database = if ($env:DATABASE_PATH) { $env:DATABASE_PATH } else { "server\data\app.db" }
@@ -89,4 +151,46 @@ $backup = Join-Path $backupDir ("app-" + (Get-Date -Format yyyyMMdd-HHmmss) + ".
 Copy-Item -LiteralPath $database -Destination $backup
 ```
 
-To restore, stop the application, preserve the current database for investigation, and copy a verified backup to a separate temporary path first. Open that copy with the application or a read-only SQLite client and verify the expected schema/data before replacing the configured `DATABASE_PATH`. A same-volume replacement can then use `Copy-Item -LiteralPath $backup -Destination $database -Force`. Restore procedures should be tested before production use; SQLite backups are not encrypted by this application, WAL/SHM sidecar files must not be copied as a substitute for a consistent stopped-database copy, and backup files must be protected by the deployment environment.
+For a restore, stop the application, preserve the current database, and first restore the backup to a separate temporary path. Open that copy and verify its schema and expected data before replacing the configured database. Protect backup files: this application does not encrypt them, and a consistent stopped-database copy is required instead of treating WAL/SHM sidecar files as a backup.
+
+## Security and deployment notes
+
+The application includes:
+
+- bcrypt password hashing.
+- Signed, HTTP-only session cookies.
+- Same-origin checks for state-changing browser requests.
+- Security response headers and disabled Express fingerprinting.
+- Login and registration rate limiting with `Retry-After` responses.
+- Session invalidation after account-status changes.
+- Server-side role and ownership checks.
+- Public profile responses that omit email addresses.
+
+Rate limiting is held in process memory and is suitable only for a single application instance. A horizontally scaled deployment needs shared rate-limit storage. No deployment infrastructure is included in this repository, and hosted deployment behavior has not been verified.
+
+## Project layout
+
+```text
+client/       React application and styles
+server/       Express API, SQLite initialization, and backend tests
+e2e/          Playwright browser smoke tests
+docs/         Architecture, decisions, and implementation work log
+```
+
+The chronological implementation record is available in [`docs/WORK_LOG.md`](docs/WORK_LOG.md).
+
+## Continuous integration
+
+The GitHub Actions workflow in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pushes and pull requests targeting `main`:
+
+1. Install dependencies with `npm ci`.
+2. Run the Vitest suite.
+3. Create the production build.
+4. Install Chromium.
+5. Run the Playwright smoke suite.
+
+The checks validate the application in CI, but they do not constitute a production deployment, a full accessibility audit, or a test of horizontally scaled infrastructure.
+
+## License
+
+See [`LICENSE`](LICENSE).
