@@ -221,6 +221,7 @@ __marimo__/
 
 # Node / local application state
 node_modules/
+test-results/
 dist/
 client/dist/
 server/data/*.db
