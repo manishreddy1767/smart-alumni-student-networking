@@ -258,6 +258,22 @@
 - Final work-log commit `f5500b5` (`Finalize SQLite work log`) was created and pushed successfully; the repository was clean and synchronized at the preceding verification point.
 - Final synchronization commit `c033d99` (`Record final SQLite log commit`) was created and pushed successfully. Final verification: `main` and `origin/main` are synchronized and the working tree is clean.
 
+### SQLite backup and restore verification
+
+- Read the existing backup/restore instructions in [README.md](../README.md), the database boundary in [docs/ARCHITECTURE.md](./ARCHITECTURE.md), [server/src/db.ts](../server/src/db.ts), [package.json](../package.json), and the available repository scripts. Confirmed there is no dedicated backup command or service; the documented mechanism is a stopped-application SQLite file copy.
+- Updated [README.md](../README.md) with reproducible PowerShell variables for `DATABASE_PATH`, backup-directory creation, timestamped copying, separate-path restore verification, and explicit SQLite WAL/SHM and encryption considerations.
+- Updated [docs/ARCHITECTURE.md](./ARCHITECTURE.md) to state that backup/restore is an operator responsibility and that backups are unencrypted.
+- Backup/restore verification used only an exact temporary directory under `%TEMP%`; the repository database was not opened or overwritten:
+  - Built the current application with `npm run build`.
+  - Initialized a temporary SQLite database using the built database initializer, inserted a representative user/profile, and confirmed schema version `2`.
+  - Backed up `source.db` to a separate `backup.db` with `Copy-Item`.
+  - Restored `backup.db` to a separate `restore.db` with `Copy-Item`.
+  - Opened both backup and restored files read-only with the existing `better-sqlite3` dependency and verified `schema_meta.version >= 2`, the representative user, and the related profile data.
+  - Both verification processes exited `0`; the exact temporary directory and files were removed afterward, and cleanup reported `cleanup_exists=False`.
+- The first verification attempt failed because the ad hoc Node command passed the SQLite filename as a script rather than an argument; it exited non-zero, cleaned its temporary directory, and was corrected without changing application code.
+- Limitation: file-copy backup requires the application to be stopped; it is not a live backup mechanism, does not encrypt data, and is not a substitute for managed backup/durability tooling at production scale.
+- Commit and push are pending for this documentation/verification milestone.
+
 ### Frontend accessibility and state primitives
 
 - Read this work log and confirmed `main` was clean and synchronized before starting the frontend follow-up.

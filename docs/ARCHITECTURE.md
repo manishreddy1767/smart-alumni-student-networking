@@ -52,6 +52,6 @@ The API uses `server/data/app.db` by default. Set `DATABASE_PATH`, `JWT_SECRET`,
 ## Operational boundaries
 
 - SQLite and the in-memory login/registration limiter are designed for local development and small single-instance deployments. SQLite serializes writes; the application uses a five-second busy timeout, but concurrent write-heavy or multi-instance workloads should move to a managed relational database and shared rate-limit store.
-- The application provides schema versioning and additive forward migrations, but backup/restore execution remains an operator responsibility.
+- The application provides schema versioning and additive forward migrations, but it has no backup service; stopped-application SQLite file copies and restore verification remain operator responsibilities. SQLite backups are unencrypted and should be tested on a separate copy before replacement.
 - CI verifies installation, tests, and the production build; it does not provision infrastructure or run browser automation.
 - Accessibility coverage currently consists of semantic markup, keyboard-focus styling, labels, responsive behavior, and frontend smoke tests. A dedicated automated WCAG scanner is not part of the repository.

@@ -78,10 +78,14 @@ The repository does not include infrastructure provisioning, hosted database set
 
 ### Database migrations and backup
 
-The database initializer maintains an `app` schema version in `schema_meta` and applies only forward-compatible changes. It never drops tables or resets existing data. Before upgrades, stop the application and copy the SQLite database file to a protected backup location:
+The database initializer maintains an `app` schema version in `schema_meta` and applies only forward-compatible changes. It never drops tables or resets existing data. The repository does not include a separate backup service or command: the supported mechanism is a file copy while the application is stopped, so no process can write during the copy. Before upgrades, create a protected backup directory and copy the configured SQLite database file:
 
 ```powershell
-Copy-Item server\data\app.db server\data\backups\app-$(Get-Date -Format yyyyMMdd-HHmmss).db
+$database = if ($env:DATABASE_PATH) { $env:DATABASE_PATH } else { "server\data\app.db" }
+$backupDir = "server\data\backups"
+New-Item -ItemType Directory -Force $backupDir | Out-Null
+$backup = Join-Path $backupDir ("app-" + (Get-Date -Format yyyyMMdd-HHmmss) + ".db")
+Copy-Item -LiteralPath $database -Destination $backup
 ```
 
-To restore, stop the application, preserve the current database for investigation, and copy a verified backup back to the configured `DATABASE_PATH`. Restore procedures should be tested before production use; SQLite backups are not encrypted by this application and must be protected by the deployment environment.
+To restore, stop the application, preserve the current database for investigation, and copy a verified backup to a separate temporary path first. Open that copy with the application or a read-only SQLite client and verify the expected schema/data before replacing the configured `DATABASE_PATH`. A same-volume replacement can then use `Copy-Item -LiteralPath $backup -Destination $database -Force`. Restore procedures should be tested before production use; SQLite backups are not encrypted by this application, WAL/SHM sidecar files must not be copied as a substitute for a consistent stopped-database copy, and backup files must be protected by the deployment environment.
