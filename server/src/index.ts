@@ -192,7 +192,7 @@ app.get("/api/opportunities", auth, (req, res) => {
   if (q) { sql += " AND (o.title LIKE ? OR o.organization LIKE ? OR o.skills LIKE ?)"; const v = `%${q}%`; params.push(v, v, v); }
   if (type) { sql += " AND o.type=?"; params.push(type); }
   const total = (db.prepare(`SELECT COUNT(*) as count FROM (${sql})`).get(...params) as { count: number }).count;
-  sql += " ORDER BY o.deadline ASC LIMIT ? OFFSET ?";
+  sql += " ORDER BY o.deadline ASC, o.created_at DESC, o.id DESC LIMIT ? OFFSET ?";
   res.json({ opportunities: db.prepare(sql).all(...params, pageSize, (page - 1) * pageSize), page, pageSize, total });
 });
 app.post("/api/opportunities", auth, role("alumni", "admin"), (req: AuthRequest, res) => {

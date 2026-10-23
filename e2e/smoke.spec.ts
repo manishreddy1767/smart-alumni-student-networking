@@ -11,7 +11,7 @@ test("loads the landing page and navigates to the community section", async ({ p
 
 test("renders and validates login and registration forms", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   const loginEmail = page.getByLabel("Email address");
   const loginPassword = page.getByLabel("Password");
@@ -35,6 +35,23 @@ test("registers a user and uses protected navigation", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /Good morning, Browser/i })).toBeVisible({ timeout: 10_000 });
   await page.getByRole("button", { name: "Mentorship" }).click();
   await expect(page.getByRole("heading", { name: "Mentorship" })).toBeVisible();
+});
+
+test("loads student connections and mentorship pages", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("Email address").fill("student@alumni-connect.local");
+  await page.getByLabel("Password").fill("DemoPass123!");
+  await page.locator(".modal").getByRole("button", { name: /Sign in/ }).click();
+  await expect(page.getByRole("heading", { name: /Good morning, Ananya/i })).toBeVisible({ timeout: 10_000 });
+
+  await page.getByRole("button", { name: "Connections" }).click();
+  await expect(page.getByRole("heading", { name: "Connections" })).toBeVisible();
+  await expect(page.getByText("Your network is waiting for its first connection.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Mentorship" }).click();
+  await expect(page.getByRole("heading", { name: "Mentorship" })).toBeVisible();
+  await expect(page.getByText("No mentorship requests yet. Explore alumni who are available to mentor.")).toBeVisible();
 });
 
 test("renders without horizontal overflow on a mobile viewport", async ({ page }) => {
